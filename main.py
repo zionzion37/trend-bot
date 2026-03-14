@@ -1,29 +1,30 @@
-name: Morning Trend Bot
+import os
+import requests
+from pytrends.request import TrendReq
 
-on:
-  schedule:
-    # 한국 시간 아침 8시는 세계 표준시(UTC) 기준 전날 밤 11시(23시)입니다.
-    - cron: '0 23 * * *'
-  workflow_dispatch: # 수동으로도 실행해 볼 수 있게 하는 버튼
+# 깃허브에 숨겨둔 텔레그램 정보 가져오기
+TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
+CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
-jobs:
-  run-bot:
-    runs-on: ubuntu-latest
+def send_telegram_message(text):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}
+    requests.post(url, data=payload)
 
-    steps:
-    - name: 저장소 코드 가져오기
-      uses: actions/checkout@v3
+def get_google_trends():
+    pytrends = TrendReq(hl='ko-KR', tz=540)
+    try:
+        # 한국 기준 일별 인기 검색어 가져오기
+        trending_df = pytrends.trending_searches(pn='south_korea')
+        top10 = trending_df[0].tolist()[:10]
+        
+        message = "🔥 <b>오늘 아침 구글 트렌드 Top 10</b>\n\n"
+        for i, keyword in enumerate(top10, 1):
+            message += f"{i}. {keyword}\n"
+        
+        send_telegram_message(message)
+    except Exception as e:
+        send_telegram_message(f"오류가 발생했습니다: {e}")
 
-    - name: 파이썬 설치
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-
-    - name: 필요한 부품(라이브러리) 설치
-      run: pip install -r requirements.txt
-
-    - name: 파이썬 스크립트 실행
-      env:
-        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      run: python main.py
+if __name__ == "__main__":
+    get_google_trends()
